@@ -1186,6 +1186,16 @@ function renderDashboard() {
         return fecha.getFullYear() === selectedYear;
     });
     
+    // Crear acumulador por categoría
+    const montosPorCategoria = movimientosFiltrados.reduce((acc, mov) => {
+        if (mov.categoria_id) {
+            acc[mov.categoria_id] = (acc[mov.categoria_id] || 0) + parseFloat(mov.monto) || 0;
+        }
+        return acc;
+    }, {});
+    
+    const saldo = Object.values(montosPorCategoria).reduce((sum, val) => sum + val, 0);
+    
     // Calcular métricas basadas en tipo_flujo de las categorías
     const ingresos = movimientosFiltrados
         .filter(mov => {
@@ -1204,8 +1214,6 @@ function renderDashboard() {
     const patrimonio = movimientosFiltrados
         .filter(mov => mov.categoria_id === 'CAT_003')
         .reduce((sum, mov) => sum + Math.abs(parseFloat(mov.monto)), 0);
-    
-    const saldo = ingresos - gastos;
     
     // Actualizar métricas en el DOM
     document.getElementById('saldo-total').textContent = formatCurrency(saldo);
