@@ -55,7 +55,7 @@ def separar_excel_a_csv(archivo_excel):
 
 if __name__ == "__main__":
     # Ruta al archivo Excel
-    archivo_excel = "fact_movimientos.xlsx"
+    archivo_excel = "DataGenesis.xlsx"
     
     # Verificar si el archivo existe
     if os.path.exists(archivo_excel):
