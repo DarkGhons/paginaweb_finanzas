@@ -1,27 +1,34 @@
 // Configuración de datos
+const API_BASE_URL = 'http://localhost:5000/api';
+
 const dataConfig = {
     movimientos: {
         file: 'fact_movimientos.csv',
+        endpoint: '/movimientos',
         title: 'Movimientos',
         description: 'Tabla principal con todos los movimientos financieros'
     },
     cuentas: {
         file: 'dim_cuentas.csv',
+        endpoint: '/cuentas',
         title: 'Cuentas',
         description: 'Dimensión de cuentas contables'
     },
     categorias: {
         file: 'dim_categorias.csv',
+        endpoint: '/categorias',
         title: 'Categorías',
         description: 'Dimensión de categorías de movimientos'
     },
     contrapartes: {
         file: 'dim_contrapartes.csv',
+        endpoint: '/contrapartes',
         title: 'Contrapartes',
         description: 'Dimensión de contrapartes involucradas'
     },
     instrumentos: {
         file: 'dim_instrumentos.csv',
+        endpoint: '/instrumentos',
         title: 'Instrumentos',
         description: 'Dimensión de instrumentos financieros'
     }
@@ -218,23 +225,36 @@ async function loadTable(tableType) {
     
     try {
         const config = dataConfig[tableType];
-        const response = await fetch(config.file);
         
-        if (!response.ok) {
-            throw new Error(`No se pudo cargar ${config.file}`);
+        // Intentar cargar desde API primero, fallback a CSV
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}${config.endpoint}`);
+            if (response.ok) {
+                currentData = await response.json();
+            } else {
+                throw new Error('API no disponible');
+            }
+        } catch (apiError) {
+            console.warn('API no disponible, cargando desde CSV:', apiError);
+            response = await fetch(config.file);
+            
+            if (!response.ok) {
+                throw new Error(`No se pudo cargar ${config.file}`);
+            }
+            
+            const csvText = await response.text();
+            const parsedData = Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true
+            });
+            
+            if (parsedData.errors.length > 0) {
+                console.warn('Errores al parsear CSV:', parsedData.errors);
+            }
+            
+            currentData = parsedData.data;
         }
-        
-        const csvText = await response.text();
-        const parsedData = Papa.parse(csvText, {
-            header: true,
-            skipEmptyLines: true
-        });
-        
-        if (parsedData.errors.length > 0) {
-            console.warn('Errores al parsear CSV:', parsedData.errors);
-        }
-        
-        currentData = parsedData.data;
         
         // Ordenar movimientos por MOV_ID descendente (más nuevos primero)
         if (tableType === 'movimientos') {
@@ -617,7 +637,7 @@ function generateForm(data = null) {
 }
 
 // Guardar registro
-function saveRecord(e) {
+async function saveRecord(e) {
     e.preventDefault();
     
     const formData = new FormData(elements.recordForm);
@@ -628,33 +648,92 @@ function saveRecord(e) {
         newRecord[key] = value.trim();
     }
     
-    // Para nuevos registros, generar ID automáticamente si está vacío
-    if (editingIndex === -1) {
-        const headers = Object.keys(filteredData[0] || {});
-        const idField = headers[0]; // Primer campo es el ID
-        
-        if (!newRecord[idField] || newRecord[idField] === '') {
-            newRecord[idField] = generateNextId();
-        }
-        
-        // Verificar que el ID no exista ya
-        const idExists = currentData.some(row => row[idField] === newRecord[idField]);
-        if (idExists) {
-            alert('Error: El ID ya existe. Intenta nuevamente.');
-            return;
-        }
-    }
-    
     // Validación personalizada según el tipo de tabla
     const validationResult = validateRecord(newRecord);
     if (!validationResult.isValid) {
-        alert(validationResult.message);
+        showNotification(validationResult.message, 'error');
         return;
     }
     
-    if (editingIndex === -1) {
-        // Agregar nuevo registro
-        currentData.push(newRecord);
+    try {
+        const config = dataConfig[currentTable];
+        let response;
+        
+        if (editingIndex === -1) {
+            // Crear nuevo registro
+            response = await fetch(`${API_BASE_URL}${config.endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newRecord)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                showNotification(result.message || 'Registro creado exitosamente', 'success');
+                
+                // Recargar datos desde el servidor
+                await loadTable(currentTable);
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Error al crear el registro');
+            }
+        } else {
+            // Actualizar registro existente
+            const recordToUpdate = filteredData[editingIndex];
+            const headers = Object.keys(recordToUpdate);
+            const idField = headers[0]; // Primer campo es el ID
+            const recordId = recordToUpdate[idField];
+            
+            response = await fetch(`${API_BASE_URL}${config.endpoint}/${recordId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(newRecord)
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                showNotification(result.message || 'Registro actualizado exitosamente', 'success');
+                
+                // Recargar datos desde el servidor
+                await loadTable(currentTable);
+            } else {
+                const error = await response.json();
+                throw new Error(error.error || 'Error al actualizar el registro');
+            }
+        }
+        
+        closeModal();
+        
+    } catch (error) {
+        console.error('Error en saveRecord:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+        
+        // Fallback: actualizar localmente si la API falla
+        if (editingIndex === -1) {
+            // Para nuevos registros, generar ID automáticamente si está vacío
+            const headers = Object.keys(filteredData[0] || {});
+            const idField = headers[0];
+            
+            if (!newRecord[idField] || newRecord[idField] === '') {
+                newRecord[idField] = generateNextId();
+            }
+            
+            currentData.push(newRecord);
+            showNotification('Registro agregado localmente (sin sincronizar)', 'success');
+        } else {
+            // Actualizar registro existente localmente
+            const originalIndex = currentData.findIndex(item => 
+                JSON.stringify(item) === JSON.stringify(filteredData[editingIndex])
+            );
+            if (originalIndex !== -1) {
+                currentData[originalIndex] = newRecord;
+                showNotification('Registro actualizado localmente (sin sincronizar)', 'success');
+            }
+        }
         
         // Re-ordenar movimientos si es necesario
         if (currentTable === 'movimientos') {
@@ -665,14 +744,51 @@ function saveRecord(e) {
             });
         }
         
-        showNotification('Registro agregado exitosamente', 'success');
-    } else {
-        // Actualizar registro existente
+        // Actualizar datos filtrados y re-renderizar
+        applyCurrentFilter();
+        updateTableInfo(dataConfig[currentTable]);
+        renderTable();
+        closeModal();
+    }
+}
+
+// Confirmar eliminación
+async function confirmDelete() {
+    if (deleteIndex === -1) return;
+    
+    const recordToDelete = filteredData[deleteIndex];
+    const headers = Object.keys(recordToDelete);
+    const idField = headers[0]; // Primer campo es el ID
+    const recordId = recordToDelete[idField];
+    
+    try {
+        const config = dataConfig[currentTable];
+        const response = await fetch(`${API_BASE_URL}${config.endpoint}/${recordId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showNotification(result.message || 'Registro eliminado exitosamente', 'success');
+            
+            // Recargar datos desde el servidor
+            await loadTable(currentTable);
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al eliminar el registro');
+        }
+        
+    } catch (error) {
+        console.error('Error en confirmDelete:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+        
+        // Fallback: eliminar localmente si la API falla
         const originalIndex = currentData.findIndex(item => 
-            JSON.stringify(item) === JSON.stringify(filteredData[editingIndex])
+            JSON.stringify(item) === JSON.stringify(recordToDelete)
         );
+        
         if (originalIndex !== -1) {
-            currentData[originalIndex] = newRecord;
+            currentData.splice(originalIndex, 1);
             
             // Re-ordenar movimientos si es necesario
             if (currentTable === 'movimientos') {
@@ -682,44 +798,14 @@ function saveRecord(e) {
                     return idB.localeCompare(idA);
                 });
             }
+            
+            showNotification('Registro eliminado localmente (sin sincronizar)', 'success');
+            
+            // Actualizar datos filtrados y re-renderizar
+            applyCurrentFilter();
+            updateTableInfo(dataConfig[currentTable]);
+            renderTable();
         }
-        showNotification('Registro actualizado exitosamente', 'success');
-    }
-    
-    // Actualizar datos filtrados y re-renderizar
-    applyCurrentFilter();
-    updateTableInfo(dataConfig[currentTable]);
-    renderTable();
-    closeModal();
-}
-
-// Confirmar eliminación
-function confirmDelete() {
-    if (deleteIndex === -1) return;
-    
-    const recordToDelete = filteredData[deleteIndex];
-    const originalIndex = currentData.findIndex(item => 
-        JSON.stringify(item) === JSON.stringify(recordToDelete)
-    );
-    
-    if (originalIndex !== -1) {
-        currentData.splice(originalIndex, 1);
-        
-        // Re-ordenar movimientos si es necesario
-        if (currentTable === 'movimientos') {
-            currentData.sort((a, b) => {
-                const idA = a.mov_id || '';
-                const idB = b.mov_id || '';
-                return idB.localeCompare(idA);
-            });
-        }
-        
-        showNotification('Registro eliminado exitosamente', 'success');
-        
-        // Actualizar datos filtrados y re-renderizar
-        applyCurrentFilter();
-        updateTableInfo(dataConfig[currentTable]);
-        renderTable();
     }
     
     closeDeleteModal();
@@ -844,19 +930,34 @@ async function openDimensionSelector(fieldName) {
 async function loadDimensionData(dimensionType) {
     try {
         const config = dataConfig[dimensionType];
-        const response = await fetch(config.file);
         
-        if (!response.ok) {
-            throw new Error(`No se pudo cargar ${config.file}`);
+        // Intentar cargar desde API primero, fallback a CSV
+        try {
+            const response = await fetch(`${API_BASE_URL}${config.endpoint}`);
+            if (response.ok) {
+                dimensionDataCache[dimensionType] = await response.json();
+                return;
+            } else {
+                throw new Error('API no disponible');
+            }
+        } catch (apiError) {
+            console.warn('API no disponible para dimensión, cargando desde CSV:', apiError);
+            
+            const response = await fetch(config.file);
+            
+            if (!response.ok) {
+                throw new Error(`No se pudo cargar ${config.file}`);
+            }
+            
+            const csvText = await response.text();
+            const parsedData = Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true
+            });
+            
+            dimensionDataCache[dimensionType] = parsedData.data;
         }
         
-        const csvText = await response.text();
-        const parsedData = Papa.parse(csvText, {
-            header: true,
-            skipEmptyLines: true
-        });
-        
-        dimensionDataCache[dimensionType] = parsedData.data;
     } catch (error) {
         console.error('Error cargando datos de dimensión:', error);
         showNotification('Error al cargar datos de dimensión', 'error');
@@ -1015,11 +1116,28 @@ async function loadCSV(filename) {
 // Función para cargar datos del dashboard
 async function loadDashboard() {
     try {
-        // Cargar datos de movimientos y categorías
-        const [movimientos, categorias] = await Promise.all([
-            loadCSV('fact_movimientos.csv'),
-            loadCSV('dim_categorias.csv')
-        ]);
+        // Intentar cargar desde API primero, fallback a CSV
+        let movimientos, categorias;
+        
+        try {
+            const [movimientosResponse, categoriasResponse] = await Promise.all([
+                fetch(`${API_BASE_URL}/movimientos`),
+                fetch(`${API_BASE_URL}/categorias`)
+            ]);
+            
+            if (movimientosResponse.ok && categoriasResponse.ok) {
+                movimientos = await movimientosResponse.json();
+                categorias = await categoriasResponse.json();
+            } else {
+                throw new Error('API no disponible');
+            }
+        } catch (apiError) {
+            console.warn('API no disponible, cargando desde CSV:', apiError);
+            [movimientos, categorias] = await Promise.all([
+                loadCSV('fact_movimientos.csv'),
+                loadCSV('dim_categorias.csv')
+            ]);
+        }
         
         movimientosData = movimientos;
         categoriasData = categorias;
@@ -1372,30 +1490,73 @@ async function handleNuevaTransaccion(e) {
     // Validar el registro
     const validation = validateRecord(record);
     if (!validation.isValid) {
-        alert(validation.message);
+        showNotification(validation.message, 'error');
         return;
     }
     
     try {
-        // Agregar la nueva transacción a los datos
-        currentData = await loadCSV('fact_movimientos.csv');
-        currentData.push(record);
+        // Intentar crear la transacción a través de la API
+        const response = await fetch(`${API_BASE_URL}/movimientos`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(record)
+        });
         
-        // Actualizar los datos de movimientos para el dashboard
-        movimientosData = currentData;
-        
-        // Cerrar modal y mostrar confirmación
-        closeNuevaTransaccionModal();
-        showSuccessModal();
-        
-        // Actualizar dashboard si estamos en esa vista
-        if (currentTable === 'dashboard') {
-            renderDashboard();
+        if (response.ok) {
+            const result = await response.json();
+            showNotification(result.message || 'Transacción creada exitosamente', 'success');
+            
+            // Recargar datos de movimientos para el dashboard
+            try {
+                const movimientosResponse = await fetch(`${API_BASE_URL}/movimientos`);
+                if (movimientosResponse.ok) {
+                    movimientosData = await movimientosResponse.json();
+                } else {
+                    // Fallback a CSV
+                    movimientosData = await loadCSV('fact_movimientos.csv');
+                }
+            } catch (loadError) {
+                console.warn('Error recargando datos:', loadError);
+                movimientosData = await loadCSV('fact_movimientos.csv');
+            }
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || 'Error al crear la transacción');
         }
         
     } catch (error) {
         console.error('Error al crear transacción:', error);
-        alert('Error al crear la transacción');
+        showNotification(`Error: ${error.message}`, 'error');
+        
+        // Fallback: agregar localmente si la API falla
+        try {
+            currentData = await loadCSV('fact_movimientos.csv');
+            
+            // Generar ID si no existe
+            if (!record.mov_id || record.mov_id === '') {
+                record.mov_id = generateNextId();
+            }
+            
+            currentData.push(record);
+            movimientosData = currentData;
+            
+            showNotification('Transacción agregada localmente (sin sincronizar)', 'success');
+        } catch (fallbackError) {
+            console.error('Error en fallback:', fallbackError);
+            showNotification('Error al crear la transacción', 'error');
+            return;
+        }
+    }
+    
+    // Cerrar modal y mostrar confirmación
+    closeNuevaTransaccionModal();
+    showSuccessModal();
+    
+    // Actualizar dashboard si estamos en esa vista
+    if (currentTable === 'dashboard') {
+        renderDashboard();
     }
 }
 
