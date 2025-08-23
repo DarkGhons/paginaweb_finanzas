@@ -1,0 +1,17 @@
+cuenta_id,cuenta_nombre,tipo_cuenta,banco,nro_mascarado,moneda_base,activa (si/no)
+CTA_001,Banco de Chile,Cuenta Corriente,Banco de Chile,,CLP,SI
+CTA_002,Banco Estado,Cuenta RUT,Banco Estado,,CLP,SI
+CTA_003,Banco Falabella,Cuenta Corriente,Banco Falabella,,CLP,SI
+CTA_004,Banco Santander,Cuenta Corriente,Banco Santander,,CLP,SI
+CTA_005,BCI,Cuenta Corriente,Banco de Créditos e Inversiones,,CLP,NO
+CTA_006,Coopeuch,Cuenta Vista,Coopeuch,,CLP,SI
+CTA_007,Fpay,Billetera digital,Banco Falabella,,CLP,NO
+CTA_008,Chek,Billetera digital,Banco Ripley,,CLP,SI
+CTA_009,Tenpo,Billetera digital,Fintech,,CLP,SI
+CTA_010,Junaeb,Gubernamental,Edenred,,CLP,NO
+CTA_011,Mercado Pago,Billetera digital,Mercadolibre,,CLP,SI
+CTA_012,Cuota Coopeuch,Ahorro/Inversión,Coopeuch,,CLP,SI
+CTA_013,Paypal,Billetera digital,Paypal,,USD,SI
+CTA_014,Caja Efectivo,Efectivo,,,CLP,SI
+CTA_015,Prestamo por cobrar - Corto Plazo,Corto plazo,Cuenta de Cobro,,CLP,SI
+CTA_016,Prestamo por cobrar - Largo Plazo,Largo plazo,Cuenta de Cobro,,CLP,SI

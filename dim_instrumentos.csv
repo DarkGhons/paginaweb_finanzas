@@ -1,0 +1,38 @@
+instrumento_id,instrumento_nombre,tipo,emisor,monto_inicial,plazo,tasa,v_cuota,monto_actual,cupo,moneda,observaciones
+INS_001,CMR Falabella,Tarjeta de Crédito,CMR Falabella,,,,,,1250000.0,CLP,
+INS_002,Banco de Chile Signature,Tarjeta de Crédito,Banco de Chile Signature,,,,,,1000000.0,CLP,
+INS_003,Cencosud Scotiabank,Tarjeta de Crédito,Cencosud Scotiabank,,,,,,1520000.0,CLP,
+INS_004,Banco de Chile Signature USD,Tarjeta de Crédito,Banco de Chile Signature USD,,,,,,100.0,USD,
+INS_005,RappiCard,Tarjeta de Crédito,RappiCard,,,,,,0.0,CLP,
+INS_006,RappiCard USD,Tarjeta de Crédito,RappiCard USD,,,,,,0.0,USD,
+INS_007,Santander Life,Tarjeta de Crédito,Santander Life,,,,,,,CLP,
+INS_008,BCI Classic,Tarjeta de Crédito,BCI Classic,,,,,,,CLP,
+INS_010,Fintual Acciones,Instrumentos de Inversión y Ahorro,Fintual Acciones,,,,,,,USD,
+INS_011,Creación de Empresa,Instrumentos de Inversión y Ahorro,Creación de Empresa,,,,,,,CLP,
+INS_012,Fintual,Instrumentos de Inversión y Ahorro,Fintual,,,,,,,CLP,
+INS_013,Ahorro vivienda Coopeuch,Instrumentos de Inversión y Ahorro,Ahorro vivienda Coopeuch,,,,,,,CLP,
+INS_014,McAfee,Prestamo Otorgado,Cobros Mensuales,45290.0,12.0,0.0794,5990.0,,,CLP,
+INS_015,Microsoft,Prestamo Otorgado,Cobros Mensuales,46390.0,15.0,0.1249,6990.0,,,CLP,
+INS_016,Cobros Mensuales,Prestamo Otorgado,Alexis Godoy Rojas,,,,,,,CLP,
+INS_017,Mini-Empresa,Prestamo Otorgado,Alexis Godoy Rojas,,,,,,,CLP,
+INS_018,TV Alexis,Prestamo Otorgado,Alexis Godoy Rojas,479990.0,12.0,0.0,39999.0,,,CLP,Compra de TV de Alexis pagado por Lorena Rojas
+INS_019,Zapatillas Alexis,Prestamo Otorgado,Alexis Godoy Rojas,115280.0,4.0,0.0,28820.0,,,CLP,Compra de zapatillas de Alexis pagado por Lorena Rojas
+INS_020,Toallas,Prestamo Otorgado,Alexis Godoy Rojas,32186.0,3.0,0.0318,11418.0,,,CLP,Compra de toallas de Lorena Rojas
+INS_021,Amortiguador,Prestamo Otorgado,Alexis Godoy Rojas,84990.0,6.0,0.0,14165.0,,,CLP,Compra de amortiguadores de Auto pagado por Dagoberto Godoy
+INS_022,Apple TV,Prestamo Otorgado,Alexis Godoy Rojas,155990.0,12.0,0.0,12999.0,,,CLP,Compra de Apple TV pagado por Lorena Rojas
+INS_023,Línea Blanca,Prestamo Otorgado,Alexis Godoy Rojas,40980.0,3.0,0.0,13660.0,,,CLP,Compra de articulos de linea blanca a Lorena Rojas
+INS_024,Spotify,Instrumentos de Inversión y Ahorro,Cobros Mensuales,,,,,,,CLP,
+INS_025,Entradas,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_026,PC,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_027,Youtube Premium,Instrumentos de Inversión y Ahorro,Cobros Mensuales,,,,,,,,
+INS_028,Editor Video,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_029,Amazon,Instrumentos de Inversión y Ahorro,Cobros Mensuales,,,,,,,,
+INS_030,Comida,Prestamo Otorgado,Alexis Godoy Rojas,,,,,,,,
+INS_031,Depositos a Plazo,Instrumentos de Inversión y Ahorro,Banco Falabella,,,,,,,,
+INS_033,Regalo Padre,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_034,Impresora,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_035,Barra de Sonido,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_036,Aspiradora,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_037,Bebidas,Prestamo Otorgado,Mini-Empresa,,,,,,,,
+INS_038,Sodimac,Prestamo Otorgado,Lorena Rojas,,,,,,,,
+INS_039,Bienestar,Prestamo Otorgado,Hospital,,,,,,,,

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Datos Financieros</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <h1 class="text-3xl font-bold">Visualizador de Datos Financieros</h1>
+            <p class="text-blue-100 mt-2">Exploración de dimensiones y movimientos</p>
+        </div>
+    </header>
+
+    <nav class="bg-white shadow-sm border-b">
+        <div class="container mx-auto px-4">
+            <div class="flex flex-wrap gap-2 py-4">
+                <button id="btn-dashboard" class="nav-btn bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
+                    Dashboard
+                </button>
+                <button id="btn-movimientos" class="nav-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                    Movimientos
+                </button>
+                <button id="btn-cuentas" class="nav-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                    Cuentas
+                </button>
+                <button id="btn-categorias" class="nav-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                    Categorías
+                </button>
+                <button id="btn-contrapartes" class="nav-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                    Contrapartes
+                </button>
+                <button id="btn-instrumentos" class="nav-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors">
+                    Instrumentos
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="space-y-6">
+            <!-- Métricas principales -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
+                    <div class="flex items-center">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-600">Saldo Total</p>
+                            <p id="saldo-total" class="text-2xl font-bold text-gray-900">$0</p>
+                            <div class="text-xs text-gray-500 mt-1">
+                                <div>Ingresos: <span id="total-ingresos-detail">$0</span></div>
+                                <div>Gastos: <span id="total-gastos-detail">$0</span></div>
+                                <div>Patrimonio: <span id="total-patrimonio-detail">$0</span></div>
+                            </div>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
+                    <div class="flex items-center">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-600">Ingresos</p>
+                            <p id="total-ingresos" class="text-2xl font-bold text-green-600">$0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-red-500">
+                    <div class="flex items-center">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-600">Gastos</p>
+                            <p id="total-gastos" class="text-2xl font-bold text-red-600">$0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
+                    <div class="flex items-center">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-gray-600">Resultado Final</p>
+                            <p id="resultado-final" class="text-2xl font-bold text-gray-900">$0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 00-2-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos y análisis -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Gráfico de tendencias mensuales -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Tendencia Mensual</h3>
+                        <div class="flex gap-2">
+                            <select id="year-filter" class="px-3 py-1 border border-gray-300 rounded text-sm">
+                                <!-- Se llena dinámicamente -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="h-64 flex items-center justify-center bg-gray-50 rounded">
+                        <canvas id="monthly-chart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Acciones Rápidas -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Acciones Rápidas</h3>
+                    <div class="grid grid-cols-1 gap-3">
+                        <button 
+                            id="nueva-transaccion-btn"
+                            class="flex items-center justify-center gap-2 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                        >
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Nueva Transacción
+                        </button>
+                        <!-- Espacio para futuros botones -->
+                        <div class="text-center text-gray-400 text-sm py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                            Más acciones próximamente
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top categorías -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Categorías</h3>
+                <div id="top-categorias" class="space-y-3">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Movimientos recientes -->
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">Movimientos Recientes</h3>
+                    <button onclick="switchTable('movimientos')" class="text-blue-600 hover:text-blue-800 font-medium">
+                        Ver todos
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table id="recent-movements" class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-movements-body">
+                            <!-- Se llena dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Barra de búsqueda y acciones (para tablas) -->
+        <div id="table-controls" class="mb-6 hidden">
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div class="flex-1">
+                    <input 
+                        type="text" 
+                        id="search-input" 
+                        placeholder="Buscar en los datos..." 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                </div>
+                <div class="flex gap-2">
+                    <button 
+                        id="add-record" 
+                        class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors hidden"
+                    >
+                        + Agregar
+                    </button>
+                    <button 
+                        id="clear-search" 
+                        class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                    >
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información de la tabla actual -->
+        <div id="table-info" class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h2 id="table-title" class="text-xl font-semibold text-blue-800 mb-2">Movimientos</h2>
+            <p id="table-description" class="text-blue-600">Tabla principal con todos los movimientos financieros</p>
+            <div class="mt-2 text-sm text-blue-700">
+                <span id="total-rows">Total de registros: 0</span> | 
+                <span id="filtered-rows">Mostrando: 0</span>
+            </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div id="loading" class="text-center py-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p class="mt-2 text-gray-600">Cargando datos...</p>
+        </div>
+
+        <!-- Error message -->
+        <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <p class="text-red-800">Error al cargar los datos. Asegúrate de que los archivos CSV estén en el mismo directorio.</p>
+        </div>
+
+        <!-- Contenedor de tabla -->
+        <div id="table-container" class="hidden bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table id="data-table" class="w-full">
+                    <thead id="table-header" class="bg-gray-50">
+                        <!-- Headers se generan dinámicamente -->
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Datos se generan dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Paginación -->
+        <div id="pagination" class="hidden mt-6 flex justify-center items-center gap-2">
+            <button id="prev-page" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">
+                Anterior
+            </button>
+            <span id="page-info" class="px-4 py-1 text-gray-700"></span>
+            <button id="next-page" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50">
+                Siguiente
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal para agregar/editar registros -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center p-6 border-b">
+                    <h3 id="modal-title" class="text-lg font-semibold">Agregar Registro</h3>
+                    <button id="close-modal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="record-form" class="p-6">
+                    <div id="form-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6 pt-6 border-t">
+                        <button type="button" id="cancel-btn" class="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
+                            Cancelar
+                        </button>
+                        <button type="submit" id="save-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para selector de dimensiones -->
+    <div id="dimension-selector-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96">
+                <div class="flex justify-between items-center p-6 border-b">
+                    <h3 id="dimension-modal-title" class="text-lg font-semibold">Seleccionar</h3>
+                    <button id="close-dimension-modal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-6">
+                    <input type="text" id="dimension-search" placeholder="Buscar..." class="w-full px-3 py-2 border border-gray-300 rounded mb-4">
+                    <div id="dimension-list" class="max-h-48 overflow-y-auto space-y-2">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para nueva transacción -->
+    <div id="nueva-transaccion-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center p-6 border-b">
+                    <h3 class="text-lg font-semibold">Nueva Transacción</h3>
+                    <button id="close-nueva-transaccion" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <form id="nueva-transaccion-form" class="p-6">
+                    <div id="nueva-transaccion-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                    <div class="flex justify-end gap-3 mt-6 pt-6 border-t">
+                        <button type="button" id="cancelar-nueva-transaccion" class="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                            Crear Transacción
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación -->
+    <div id="success-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="p-6 text-center">
+                    <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">¡Transacción Creada!</h3>
+                    <p class="text-gray-600 mb-4">La nueva transacción se ha guardado exitosamente.</p>
+                    <button id="close-success-modal" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación para eliminar -->
+    <div id="delete-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-sm w-full">
+                <div class="p-6">
+                    <div class="flex items-center mb-4">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                            <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">Confirmar eliminación</h3>
+                        <p class="text-sm text-gray-500 mb-4">¿Estás seguro de que quieres eliminar este registro? Esta acción no se puede deshacer.</p>
+                    </div>
+                    
+                    <div class="flex justify-center gap-3">
+                        <button id="cancel-delete" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
+                            Cancelar
+                        </button>
+                        <button id="confirm-delete" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                            Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal selector de dimensiones -->
+    <div id="dimension-selector-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-[70]">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 id="selector-title" class="text-lg font-semibold text-gray-900">Seleccionar</h3>
+                        <button id="close-selector" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <!-- Búsqueda en selector -->
+                    <div class="mb-4">
+                        <input 
+                            type="text" 
+                            id="selector-search" 
+                            placeholder="Buscar..." 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                    </div>
+                    
+                    <!-- Tabla del selector -->
+                    <div class="overflow-y-auto max-h-96">
+                        <table id="selector-table" class="w-full">
+                            <thead id="selector-header" class="bg-gray-50 sticky top-0">
+                                <!-- Headers se generan dinámicamente -->
+                            </thead>
+                            <tbody id="selector-body">
+                                <!-- Datos se generan dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="flex justify-end gap-3 mt-6">
+                        <button id="cancel-selector" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-800 text-white py-6 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p>&copy; 2024 Visualizador de Datos Financieros</p>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>

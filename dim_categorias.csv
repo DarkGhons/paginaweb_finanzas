@@ -1,0 +1,35 @@
+categoria_id,tipo_flujo,categoria_nombre,grupo,subgrupo
+CAT_001,Ajuste,Ajuste contable,Ajustes/Otros,-
+CAT_002,Gasto,Otros gastos,Gastos variables,Otros
+CAT_003,Gasto,Alimentación,Gastos variables,Comida y bebidas
+CAT_004,Gasto,Donaciones y Regalos,Gastos variables,Regalos
+CAT_005,Gasto,Hogar y Jardín,Gastos variables,Mantenimiento hogar
+CAT_006,Gasto,Ropa y Aseo Personal,Gastos variables,Vestimenta
+CAT_007,Gasto,Salud y Bienestar,Gastos variables,Salud eventual
+CAT_008,Gasto,Transporte,Gastos variables,Transporte
+CAT_009,Gasto,Mantenimiento Vehicular,Gastos variables,Auto y combustible
+CAT_010,Gasto,Mascotas,Gastos variables,Mascotas
+CAT_011,Gasto,Comunicación,Gastos fijos,Telefonía/Internet
+CAT_012,Gasto,Educación y Formación,Gastos fijos,Educación
+CAT_013,Gasto,Entretenimiento y Suscripciones,Gastos fijos,Entretenimiento
+CAT_014,Gasto,Servicios Básicos,Gastos fijos,"Agua, luz, gas"
+CAT_015,Gasto,Seguros,Gastos fijos,Seguros
+CAT_016,Operación financiera,Pago préstamo,Operaciones financieras,Préstamos
+CAT_017,Operación financiera,Recepción préstamo,Operaciones financieras,Préstamos
+CAT_018,Operación financiera,Pago tarjeta de crédito,Operaciones financieras,Tarjetas
+CAT_019,Operación financiera,"Impuestos, Interés y Tarifas",Operaciones financieras,Obligaciones fiscales
+CAT_020,Operación financiera,Comisiones Bancarias,Operaciones financieras,Comisiones
+CAT_021,Mov. interno,Transferencia interna,Movimientos internos,Transferencias
+CAT_022,Mov. interno,Ahorro/Inversión Propia,Movimientos internos,Ahorro propio
+CAT_023,Ingreso,Bonos/Comisiones,Ingresos,Laborales
+CAT_024,Ingreso,Salario,Ingresos,Laborales
+CAT_025,Ingreso,Ingreso por Venta,Ingresos,Ventas
+CAT_026,Ingreso,Ingreso por Inversiones,Ingresos,Inversiones
+CAT_027,Ingreso,Ingresos Pasivos,Ingresos,Pasivos
+CAT_028,Ingreso,Ingresos por Actividades Esporádicas,Ingresos,Eventuales
+CAT_029,Ingreso,Ingresos por Beneficios Gubernamentales,Ingresos,Subsidios
+CAT_030,Ingreso,Reembolsos,Ingresos,Reembolsos
+CAT_031,Ingreso,Intereses Bancarios a Favor,Ingresos,Intereses
+CAT_032,Operación financiera,Pago de deuda,Operaciones financieras,Préstamos
+CAT_033,Patrimonio,Patrimonio,Ajustes/Otros,Ajuste
+CAT_034,Ingreso,Regalos y donaciones,Ingresos,Regalos recibidos
