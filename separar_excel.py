@@ -35,7 +35,7 @@ def separar_excel_a_csv(archivo_excel):
             df = pd.read_excel(archivo_excel, sheet_name=nombre_hoja)
             
             # Crear nombre del archivo CSV
-            nombre_csv = f"{nombre_base}_{nombre_hoja}.csv"
+            nombre_csv = f"{nombre_hoja}.csv"
             ruta_csv = os.path.join(directorio_base, nombre_csv)
             
             # Guardar como CSV
