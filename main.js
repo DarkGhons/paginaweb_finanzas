@@ -128,7 +128,31 @@ const elements = {
     selectorHeader: document.getElementById('selector-header'),
     selectorBody: document.getElementById('selector-body'),
     closeSelector: document.getElementById('close-selector'),
-    cancelSelector: document.getElementById('cancel-selector')
+    cancelSelector: document.getElementById('cancel-selector'),
+    
+    // Resumen de saldos
+    btnResumenSaldos: document.getElementById('btn-resumen-saldos'),
+    resumenSaldosModal: document.getElementById('resumen-saldos-modal'),
+    dimensionSelect: document.getElementById('dimension-select'),
+    resumenSaldosTable: document.getElementById('resumen-saldos-table'),
+    resumenSaldosBody: document.getElementById('resumen-saldos-body'),
+    resumenTotalGeneral: document.getElementById('resumen-total-general'),
+    closeResumenSaldos: document.getElementById('close-resumen-saldos'),
+    
+    // Modal detalle de movimientos
+    detalleMovimientosModal: document.getElementById('detalle-movimientos-modal'),
+    detalleTitulo: document.getElementById('detalle-titulo'),
+    detalleSubtitulo: document.getElementById('detalle-subtitulo'),
+    closeDetalleMovimientos: document.getElementById('close-detalle-movimientos'),
+    mesFilter: document.getElementById('mes-filter'),
+    totalMovimientosMes: document.getElementById('total-movimientos-mes'),
+    detalleMovimientosTable: document.getElementById('detalle-movimientos-table'),
+    detalleMovimientosBody: document.getElementById('detalle-movimientos-body'),
+    detalleIngresos: document.getElementById('detalle-ingresos'),
+    detalleGastos: document.getElementById('detalle-gastos'),
+    detalleSaldoMes: document.getElementById('detalle-saldo-mes'),
+    mostrarMasContainer: document.getElementById('mostrar-mas-container'),
+    mostrarMasBtn: document.getElementById('mostrar-mas-btn')
 };
 
 // Inicialización
@@ -187,6 +211,38 @@ function setupEventListeners() {
     elements.closeSelector.addEventListener('click', closeDimensionSelector);
     elements.cancelSelector.addEventListener('click', closeDimensionSelector);
     elements.selectorSearch.addEventListener('input', debounce(handleSelectorSearch, 300));
+    
+    // Resumen de saldos
+    if (elements.btnResumenSaldos) {
+        elements.btnResumenSaldos.addEventListener('click', openResumenSaldos);
+    }
+    if (elements.closeResumenSaldos) {
+        elements.closeResumenSaldos.addEventListener('click', closeResumenSaldos);
+    }
+    if (elements.dimensionSelect) {
+        elements.dimensionSelect.addEventListener('change', renderResumenSaldos);
+    }
+    if (elements.resumenSaldosModal) {
+        elements.resumenSaldosModal.addEventListener('click', (e) => {
+            if (e.target === elements.resumenSaldosModal) closeResumenSaldos();
+        });
+    }
+    
+    // Modal detalle de movimientos
+    if (elements.closeDetalleMovimientos) {
+        elements.closeDetalleMovimientos.addEventListener('click', closeDetalleMovimientos);
+    }
+    if (elements.mesFilter) {
+        elements.mesFilter.addEventListener('change', renderDetalleMovimientos);
+    }
+    if (elements.detalleMovimientosModal) {
+        elements.detalleMovimientosModal.addEventListener('click', (e) => {
+            if (e.target === elements.detalleMovimientosModal) closeDetalleMovimientos();
+        });
+    }
+    if (elements.mostrarMasBtn) {
+        elements.mostrarMasBtn.addEventListener('click', mostrarMasMovimientos);
+    }
     elements.dimensionSelectorModal.addEventListener('click', (e) => {
         if (e.target === elements.dimensionSelectorModal) closeDimensionSelector();
     });
@@ -1638,6 +1694,333 @@ function formatDate(dateString) {
     if (!dateString) return '-';
     const date = new Date(dateString);
     return date.toLocaleDateString('es-CL');
+}
+
+// ===== FUNCIONES RESUMEN DE SALDOS =====
+
+// Abrir modal de resumen de saldos
+async function openResumenSaldos() {
+    try {
+        // Cargar datos de dimensiones si no están cargados
+        await loadDimensionData();
+        
+        // Mostrar modal
+        elements.resumenSaldosModal.classList.remove('hidden');
+        
+        // Renderizar con la dimensión por defecto (categorias)
+        renderResumenSaldos();
+    } catch (error) {
+        console.error('Error al abrir resumen de saldos:', error);
+        showNotification('Error al cargar datos para el resumen', 'error');
+    }
+}
+
+// Cerrar modal de resumen de saldos
+function closeResumenSaldos() {
+    elements.resumenSaldosModal.classList.add('hidden');
+}
+
+// Cargar datos de dimensiones
+async function loadDimensionData() {
+    const dimensiones = ['categorias', 'cuentas', 'contrapartes', 'instrumentos'];
+    
+    for (const dimension of dimensiones) {
+        if (!dimensionCache[dimension]) {
+            try {
+                const response = await fetch(`${API_BASE_URL}${dataConfig[dimension].endpoint}`);
+                if (response.ok) {
+                    dimensionCache[dimension] = await response.json();
+                } else {
+                    // Fallback a CSV si API falla
+                    const csvData = await loadCSV(dataConfig[dimension].file);
+                    dimensionCache[dimension] = csvData;
+                }
+            } catch (error) {
+                console.warn(`Error cargando ${dimension} desde API, usando CSV:`, error);
+                const csvData = await loadCSV(dataConfig[dimension].file);
+                dimensionCache[dimension] = csvData;
+            }
+        }
+    }
+}
+
+// Renderizar tabla de resumen de saldos
+function renderResumenSaldos() {
+    const selectedDimension = elements.dimensionSelect.value;
+    const dimensionData = dimensionCache[selectedDimension] || [];
+    
+    if (!movimientosData.length || !dimensionData.length) {
+        elements.resumenSaldosBody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-gray-500">No hay datos disponibles</td></tr>';
+        elements.resumenTotalGeneral.textContent = formatCurrency(0);
+        return;
+    }
+    
+    // Mapear IDs de dimensión según el tipo
+    const dimensionIdField = getDimensionIdField(selectedDimension);
+    const dimensionNameField = getDimensionNameField(selectedDimension);
+    
+    // Calcular saldos por dimensión
+    const saldosPorDimension = {};
+    let totalGeneral = 0;
+    
+    movimientosData.forEach(mov => {
+        const dimensionId = mov[dimensionIdField];
+        if (dimensionId) {
+            // Verificar que la dimensión existe en los datos
+            const dimensionExists = dimensionData.find(item => item[dimensionIdField] === dimensionId);
+            if (dimensionExists) {
+                const monto = parseFloat(mov.monto) || 0;
+                saldosPorDimension[dimensionId] = (saldosPorDimension[dimensionId] || 0) + monto;
+                totalGeneral += monto;
+            }
+        }
+    });
+    
+    // Crear array de resultados con nombres de dimensión
+    const resultados = Object.entries(saldosPorDimension).map(([dimensionId, saldo]) => {
+        const dimensionItem = dimensionData.find(item => item[dimensionIdField] === dimensionId);
+        let nombre;
+        
+        if (dimensionItem) {
+            nombre = dimensionItem[dimensionNameField];
+        } else {
+            // Si no se encuentra el item, mostrar un nombre más descriptivo
+            nombre = `${selectedDimension.charAt(0).toUpperCase() + selectedDimension.slice(1, -1)} no encontrada (${dimensionId})`;
+        }
+        
+        const porcentaje = totalGeneral !== 0 ? (saldo / totalGeneral) * 100 : 0;
+        
+        return {
+            dimensionId,
+            nombre,
+            saldo,
+            porcentaje
+        };
+    });
+    
+    // Ordenar por saldo descendente
+    resultados.sort((a, b) => b.saldo - a.saldo);
+    
+    // Renderizar tabla con evento doble click
+    elements.resumenSaldosBody.innerHTML = resultados.map((resultado, index) => `
+        <tr class="hover:bg-gray-50 cursor-pointer" data-dimension-id="${resultado.dimensionId}" data-dimension-name="${resultado.nombre}">
+            <td class="px-4 py-3 text-sm font-medium text-gray-900">${resultado.nombre}</td>
+            <td class="px-4 py-3 text-sm font-medium text-right ${
+                resultado.saldo >= 0 ? 'text-green-600' : 'text-red-600'
+            }">${formatCurrency(resultado.saldo)}</td>
+            <td class="px-4 py-3 text-sm text-gray-500 text-right">${resultado.porcentaje.toFixed(1)}%</td>
+        </tr>
+    `).join('');
+    
+    // Agregar eventos de doble click a las filas
+    elements.resumenSaldosBody.querySelectorAll('tr').forEach(row => {
+        row.addEventListener('dblclick', () => {
+            const dimensionId = row.getAttribute('data-dimension-id');
+            const dimensionName = row.getAttribute('data-dimension-name');
+            const selectedDimension = elements.dimensionSelect.value;
+            openDetalleMovimientos(dimensionId, dimensionName, selectedDimension);
+        });
+    });
+    
+    // Actualizar total general
+    elements.resumenTotalGeneral.textContent = formatCurrency(totalGeneral);
+}
+
+// Obtener campo ID según la dimensión
+function getDimensionIdField(dimension) {
+    const fieldMap = {
+        'categorias': 'categoria_id',
+        'cuentas': 'cuenta_id',
+        'contrapartes': 'contraparte_id',
+        'instrumentos': 'instrumento_id'
+    };
+    return fieldMap[dimension];
+}
+
+// Obtener campo nombre según la dimensión
+function getDimensionNameField(dimension) {
+    const fieldMap = {
+        'categorias': 'categoria_nombre',
+        'cuentas': 'cuenta_nombre',
+        'contrapartes': 'contraparte_nombre',
+        'instrumentos': 'instrumento_nombre'
+    };
+    return fieldMap[dimension];
+}
+
+// ===== FUNCIONES DETALLE DE MOVIMIENTOS =====
+
+// Variables para modal de detalle
+let currentDimensionId = null;
+let currentDimensionName = null;
+let currentDimensionType = null;
+let movimientosFiltrados = [];
+let movimientosDelMesActual = [];
+let movimientosMostrados = 15;
+
+// Abrir modal de detalle de movimientos
+function openDetalleMovimientos(dimensionId, dimensionName, dimensionType) {
+    currentDimensionId = dimensionId;
+    currentDimensionName = dimensionName;
+    currentDimensionType = dimensionType;
+    
+    // Actualizar títulos
+    elements.detalleTitulo.textContent = `Movimientos de ${dimensionName}`;
+    elements.detalleSubtitulo.textContent = `Dimensión: ${dimensionType.charAt(0).toUpperCase() + dimensionType.slice(1)}`;
+    
+    // Filtrar movimientos por dimensión
+    const dimensionIdField = getDimensionIdField(dimensionType);
+    movimientosFiltrados = movimientosData.filter(mov => mov[dimensionIdField] === dimensionId);
+    
+    // Cargar opciones de meses
+    loadMesesOptions();
+    
+    // Mostrar modal
+    elements.detalleMovimientosModal.classList.remove('hidden');
+    
+    // Renderizar movimientos del mes más reciente por defecto
+    renderDetalleMovimientos();
+}
+
+// Cerrar modal de detalle de movimientos
+function closeDetalleMovimientos() {
+    elements.detalleMovimientosModal.classList.add('hidden');
+    currentDimensionId = null;
+    currentDimensionName = null;
+    currentDimensionType = null;
+    movimientosFiltrados = [];
+}
+
+// Cargar opciones de meses disponibles
+function loadMesesOptions() {
+    if (!movimientosFiltrados.length) {
+        elements.mesFilter.innerHTML = '<option value="">No hay movimientos</option>';
+        return;
+    }
+    
+    // Obtener meses únicos de los movimientos filtrados
+    const mesesSet = new Set();
+    movimientosFiltrados.forEach(mov => {
+        if (mov.fecha) {
+            const fecha = new Date(mov.fecha);
+            const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+            mesesSet.add(mesAnio);
+        }
+    });
+    
+    // Convertir a array y ordenar descendente (más reciente primero)
+    const mesesArray = Array.from(mesesSet).sort((a, b) => b.localeCompare(a));
+    
+    // Crear opciones
+    elements.mesFilter.innerHTML = mesesArray.map(mesAnio => {
+        const [anio, mes] = mesAnio.split('-');
+        const nombreMes = new Date(anio, mes - 1).toLocaleDateString('es-CL', { 
+            year: 'numeric', 
+            month: 'long' 
+        });
+        return `<option value="${mesAnio}">${nombreMes}</option>`;
+    }).join('');
+    
+    // Seleccionar el mes más reciente por defecto
+    if (mesesArray.length > 0) {
+        elements.mesFilter.value = mesesArray[0];
+    }
+}
+
+// Renderizar movimientos del mes seleccionado
+function renderDetalleMovimientos() {
+    const mesSeleccionado = elements.mesFilter.value;
+    
+    if (!mesSeleccionado || !movimientosFiltrados.length) {
+        elements.detalleMovimientosBody.innerHTML = '<tr><td colspan="4" class="px-4 py-3 text-center text-gray-500">No hay movimientos disponibles</td></tr>';
+        elements.totalMovimientosMes.textContent = '0 movimientos';
+        elements.detalleIngresos.textContent = formatCurrency(0);
+        elements.detalleGastos.textContent = formatCurrency(0);
+        elements.detalleSaldoMes.textContent = formatCurrency(0);
+        elements.mostrarMasContainer.classList.add('hidden');
+        return;
+    }
+    
+    // Filtrar movimientos por mes seleccionado
+    const [anio, mes] = mesSeleccionado.split('-');
+    movimientosDelMesActual = movimientosFiltrados.filter(mov => {
+        if (!mov.fecha) return false;
+        const fechaMov = new Date(mov.fecha);
+        return fechaMov.getFullYear() == anio && (fechaMov.getMonth() + 1) == mes;
+    });
+    
+    // Ordenar por fecha descendente
+    movimientosDelMesActual.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    
+    // Resetear contador al cambiar mes
+    movimientosMostrados = 15;
+    
+    // Renderizar movimientos
+    renderMovimientosTabla();
+    
+    // Calcular totales del mes completo
+    let totalIngresos = 0;
+    let totalGastos = 0;
+    
+    movimientosDelMesActual.forEach(mov => {
+        const monto = parseFloat(mov.monto) || 0;
+        if (monto > 0) {
+            totalIngresos += monto;
+        } else {
+            totalGastos += Math.abs(monto);
+        }
+    });
+    
+    const saldoMes = totalIngresos - totalGastos;
+    
+    // Actualizar estadísticas
+    updateEstadisticasDetalle(totalIngresos, totalGastos, saldoMes);
+}
+
+// Renderizar tabla de movimientos con paginación
+function renderMovimientosTabla() {
+    const movimientosAMostrar = movimientosDelMesActual.slice(0, movimientosMostrados);
+    
+    elements.detalleMovimientosBody.innerHTML = movimientosAMostrar.map(mov => {
+        const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
+        const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id || '-';
+        
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-sm text-gray-900">${formatDate(mov.fecha)}</td>
+                <td class="px-4 py-3 text-sm text-gray-900">${mov.descripcion || '-'}</td>
+                <td class="px-4 py-3 text-sm font-medium text-right ${
+                    parseFloat(mov.monto) >= 0 ? 'text-green-600' : 'text-red-600'
+                }">${formatCurrency(mov.monto)}</td>
+                <td class="px-4 py-3 text-sm text-gray-500">${categoriaNombre}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Actualizar contador y botón "Mostrar más"
+    elements.totalMovimientosMes.textContent = `${movimientosDelMesActual.length} movimientos (mostrando ${movimientosAMostrar.length})`;
+    
+    // Mostrar/ocultar botón "Mostrar más"
+    if (movimientosAMostrar.length < movimientosDelMesActual.length) {
+        elements.mostrarMasContainer.classList.remove('hidden');
+        const restantes = movimientosDelMesActual.length - movimientosAMostrar.length;
+        elements.mostrarMasBtn.textContent = `Mostrar más movimientos (${Math.min(15, restantes)} restantes)`;
+    } else {
+        elements.mostrarMasContainer.classList.add('hidden');
+    }
+}
+
+// Mostrar más movimientos
+function mostrarMasMovimientos() {
+    movimientosMostrados += 15;
+    renderMovimientosTabla();
+}
+
+// Actualizar estadísticas del detalle
+function updateEstadisticasDetalle(totalIngresos, totalGastos, saldoMes) {
+    elements.detalleIngresos.textContent = formatCurrency(totalIngresos);
+    elements.detalleGastos.textContent = formatCurrency(totalGastos);
+    elements.detalleSaldoMes.textContent = formatCurrency(saldoMes);
 }
 
 // Función para abrir modal (alias para openAddModal)
