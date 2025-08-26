@@ -44,6 +44,7 @@ let currentTable = 'dashboard';
 let currentPage = 1;
 let rowsPerPage = 10;
 let editingIndex = -1;
+let deleteIndex = -1;
 let monthlyChart = null;
 let dimensionCache = {};
 let selectedYear = 2025;
@@ -70,7 +71,7 @@ const requiredFields = {
 // Campos que deben ser listas desplegables
 const selectFields = {
     'activa (si/no)': ['SI', 'NO'],
-    'tipo_flujo': ['Ingreso', 'Gasto', 'Ajuste']
+    'tipo_flujo': ['Ingreso', 'Gasto', 'Operación financiera', 'Mov. interno', 'Patrimonio', 'Ajuste']
 };
 
 // Configuración de prefijos de ID para cada dimensión
@@ -511,10 +512,13 @@ function hideLoading() {
 }
 
 // Mostrar error
-function showError() {
+function showError(message = '') {
     elements.loading.classList.add('hidden');
     elements.tableContainer.classList.add('hidden');
     elements.pagination.classList.add('hidden');
+    if (elements.errorMessage && message) {
+        elements.errorMessage.textContent = message;
+    }
     elements.errorMessage.classList.remove('hidden');
 }
 
@@ -973,7 +977,7 @@ async function openDimensionSelector(fieldName) {
     
     // Cargar datos si no están en caché
     if (!dimensionDataCache[dimensionType]) {
-        await loadDimensionData(dimensionType);
+        await loadDimensionDataByType(dimensionType);
     }
     
     selectorData = dimensionDataCache[dimensionType] || [];
@@ -986,7 +990,7 @@ async function openDimensionSelector(fieldName) {
 }
 
 // Cargar datos de dimensión
-async function loadDimensionData(dimensionType) {
+async function loadDimensionDataByType(dimensionType) {
     try {
         const config = dataConfig[dimensionType];
         
@@ -1116,7 +1120,7 @@ function updateMonthYear() {
     const anioInput = document.getElementById('field-anio');
     
     if (fechaInput && fechaInput.value) {
-        const fecha = new Date(fechaInput.value);
+        const fecha = parseDateLocal(fechaInput.value);
         if (mesInput) mesInput.value = fecha.getMonth() + 1;
         if (anioInput) anioInput.value = fecha.getFullYear();
     }
@@ -1192,6 +1196,7 @@ async function loadDashboard() {
             }
         } catch (apiError) {
             console.warn('API no disponible, cargando desde CSV:', apiError);
+            
             [movimientos, categorias] = await Promise.all([
                 loadCSV('fact_movimientos.csv'),
                 loadCSV('dim_categorias.csv')
@@ -1216,12 +1221,18 @@ async function loadDashboard() {
 // Configurar filtro de año
 function setupYearFilter() {
     const years = [...new Set(movimientosData.map(mov => {
-        const fecha = new Date(mov.fecha);
+        const fecha = parseDateLocal(mov.fecha);
         return fecha.getFullYear();
     }))].sort((a, b) => b - a);
     
     const yearFilter = elements.yearFilter;
+    if (!yearFilter) return;
     yearFilter.innerHTML = '';
+    
+    // Si el año seleccionado no existe en datos, usar el más reciente disponible
+    if (!years.includes(selectedYear)) {
+        selectedYear = years.length > 0 ? years[0] : new Date().getFullYear();
+    }
     
     years.forEach(year => {
         const option = document.createElement('option');
@@ -1230,6 +1241,9 @@ function setupYearFilter() {
         option.selected = year === selectedYear;
         yearFilter.appendChild(option);
     });
+    
+    // Asegurar que el select refleje el valor actual
+    yearFilter.value = String(selectedYear);
     
     yearFilter.addEventListener('change', (e) => {
         selectedYear = parseInt(e.target.value);
@@ -1241,19 +1255,9 @@ function setupYearFilter() {
 function renderDashboard() {
     // Filtrar movimientos por año seleccionado
     const movimientosFiltrados = movimientosData.filter(mov => {
-        const fecha = new Date(mov.fecha);
+        const fecha = parseDateLocal(mov.fecha);
         return fecha.getFullYear() === selectedYear;
     });
-    
-    // Crear acumulador por categoría
-    const montosPorCategoria = movimientosFiltrados.reduce((acc, mov) => {
-        if (mov.categoria_id) {
-            acc[mov.categoria_id] = (acc[mov.categoria_id] || 0) + parseFloat(mov.monto) || 0;
-        }
-        return acc;
-    }, {});
-    
-    const saldo = Object.values(montosPorCategoria).reduce((sum, val) => sum + val, 0);
     
     // Calcular métricas basadas en tipo_flujo de las categorías
     const ingresos = movimientosFiltrados
@@ -1263,16 +1267,20 @@ function renderDashboard() {
         })
         .reduce((sum, mov) => sum + Math.abs(parseFloat(mov.monto)), 0);
     
+    // Representar GASTOS como valores negativos (incluye 'Operación financiera')
     const gastos = movimientosFiltrados
         .filter(mov => {
             const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-            return categoria && categoria.tipo_flujo === 'Gasto';
+            return categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera');
         })
-        .reduce((sum, mov) => sum + Math.abs(parseFloat(mov.monto)), 0);
+        .reduce((sum, mov) => sum - Math.abs(parseFloat(mov.monto)), 0);
     
     const patrimonio = movimientosFiltrados
-        .filter(mov => mov.categoria_id === 'CAT_003')
+        .filter(mov => mov.categoria_id === 'CAT_033')
         .reduce((sum, mov) => sum + Math.abs(parseFloat(mov.monto)), 0);
+    
+    // Saldo como ingresos + gastos (gastos ya negativos)
+    const saldo = ingresos + gastos;
     
     // Actualizar métricas en el DOM
     document.getElementById('saldo-total').textContent = formatCurrency(saldo);
@@ -1311,20 +1319,25 @@ function renderTopCategorias(movimientosFiltrados) {
             if (!categoriasTotales[categoriaNombre]) {
                 categoriasTotales[categoriaNombre] = 0;
             }
-            categoriasTotales[categoriaNombre] += Math.abs(parseFloat(mov.monto));
+            const montoAbs = Math.abs(parseFloat(mov.monto)) || 0;
+            if (categoria && categoria.tipo_flujo === 'Ingreso') {
+                categoriasTotales[categoriaNombre] += montoAbs;
+            } else if (categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera')) {
+                categoriasTotales[categoriaNombre] -= montoAbs;
+            }
         }
     });
     
     // Ordenar y tomar top 5
     const topCategorias = Object.entries(categoriasTotales)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([,a], [,b]) => Math.abs(b) - Math.abs(a))
         .slice(0, 5);
     
     // Renderizar
     topCategoriasContainer.innerHTML = topCategorias.map(([categoria, total]) => `
         <div class="flex justify-between items-center py-2 border-b border-gray-100">
             <span class="text-sm font-medium text-gray-700">${categoria}</span>
-            <span class="text-sm font-bold text-gray-900">${formatCurrency(total)}</span>
+            <span class="text-sm font-bold ${total >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(total)}</span>
         </div>
     `).join('');
 }
@@ -1344,15 +1357,16 @@ function renderMonthlyChart(movimientosFiltrados) {
     }
     
     movimientosFiltrados.forEach(mov => {
-        const fecha = new Date(mov.fecha);
+        const fecha = parseDateLocal(mov.fecha);
         const monthKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
         const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
         const monto = Math.abs(parseFloat(mov.monto));
         
         if (categoria && categoria.tipo_flujo === 'Ingreso') {
             monthlyData[monthKey].ingresos += monto;
-        } else if (categoria && categoria.tipo_flujo === 'Gasto') {
-            monthlyData[monthKey].gastos += monto;
+        } else if (categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera')) {
+            // Representar gastos como negativos
+            monthlyData[monthKey].gastos -= monto;
         }
     });
     
@@ -1430,7 +1444,7 @@ function openNuevaTransaccionModal() {
     
     // Generar campos del formulario para movimientos
     const movimientosFields = Object.keys(currentData.length > 0 ? currentData[0] : {
-        'MOV_ID': '',
+        'mov_id': '',
         'fecha': '',
         'mes': '',
         'anio': '',
@@ -1460,11 +1474,12 @@ function openNuevaTransaccionModal() {
         
         let input;
         
-        if (field === 'MOV_ID') {
+        if (field === 'mov_id') {
             // Campo de ID auto-generado (solo lectura)
             input = document.createElement('input');
             input.type = 'text';
             input.name = field;
+            input.id = `field-${field}`;
             input.className = 'w-full px-3 py-2 border border-gray-300 rounded bg-gray-100';
             input.readOnly = true;
             input.value = generateNextId();
@@ -1472,12 +1487,13 @@ function openNuevaTransaccionModal() {
             input = document.createElement('input');
             input.type = 'date';
             input.name = field;
+            input.id = `field-${field}`;
             input.className = 'w-full px-3 py-2 border border-gray-300 rounded';
             
             // Auto-completar mes y año cuando cambie la fecha
             input.addEventListener('change', (e) => {
                 if (e.target.value) {
-                    const fecha = new Date(e.target.value);
+                    const fecha = parseDateLocal(e.target.value);
                     const mesInput = fieldsContainer.querySelector('input[name="mes"]');
                     const anioInput = fieldsContainer.querySelector('input[name="anio"]');
                     
@@ -1489,11 +1505,13 @@ function openNuevaTransaccionModal() {
             input = document.createElement('input');
             input.type = 'number';
             input.name = field;
+            input.id = `field-${field}`;
             input.className = 'w-full px-3 py-2 border border-gray-300 rounded bg-gray-100';
             input.readOnly = true;
         } else if (field === 'moneda') {
             input = document.createElement('select');
             input.name = field;
+            input.id = `field-${field}`;
             input.className = 'w-full px-3 py-2 border border-gray-300 rounded';
             input.innerHTML = '<option value="">Seleccionar...</option><option value="CLP">CLP</option><option value="USD">USD</option><option value="EUR">EUR</option>';
         } else if (['cuenta_id', 'contraparte_id', 'categoria_id', 'instrumento_id'].includes(field)) {
@@ -1504,6 +1522,7 @@ function openNuevaTransaccionModal() {
             input = document.createElement('input');
             input.type = 'text';
             input.name = field;
+            input.id = `field-${field}`;
             input.className = 'flex-1 px-3 py-2 border border-gray-300 rounded';
             input.readOnly = true;
             
@@ -1511,7 +1530,7 @@ function openNuevaTransaccionModal() {
             selectBtn.type = 'button';
             selectBtn.className = 'px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700';
             selectBtn.textContent = 'Seleccionar';
-            selectBtn.addEventListener('click', () => openDimensionSelector(field, input));
+            selectBtn.addEventListener('click', () => openDimensionSelector(field));
             
             inputGroup.appendChild(input);
             inputGroup.appendChild(selectBtn);
@@ -1523,6 +1542,7 @@ function openNuevaTransaccionModal() {
             input = document.createElement('input');
             input.type = field === 'monto' ? 'number' : 'text';
             input.name = field;
+            input.id = `field-${field}`;
             input.className = 'w-full px-3 py-2 border border-gray-300 rounded';
             if (field === 'monto') {
                 input.step = '0.01';
@@ -1660,11 +1680,11 @@ function renderRecentMovements() {
     if (!recentMovementsBody || !movimientosData.length) return;
     
     // Tomar los 5 movimientos más recientes
-    const recentMovements = movimientosData
-        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+    const recentMovimientos = movimientosData
+        .sort((a, b) => parseDateLocal(b.fecha) - parseDateLocal(a.fecha))
         .slice(0, 5);
     
-    recentMovementsBody.innerHTML = recentMovements.map(mov => {
+    recentMovementsBody.innerHTML = recentMovimientos.map(mov => {
         const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
         const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id || '-';
         
@@ -1692,20 +1712,45 @@ function formatCurrency(amount) {
     }).format(num);
 }
 
+// Función utilitaria: parseo de fecha local 'YYYY-MM-DD' sin desfase de zona horaria
+function parseDateLocal(dateString) {
+    if (!dateString) return new Date(NaN);
+    // Soporta 'YYYY-MM-DD' y valores Date; si viene ya Date, devolverlo
+    if (dateString instanceof Date) return dateString;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateString));
+    if (m) {
+        const y = parseInt(m[1], 10);
+        const mo = parseInt(m[2], 10) - 1;
+        const d = parseInt(m[3], 10);
+        return new Date(y, mo, d);
+    }
+    // Fallback: usar Date nativo
+    return new Date(dateString);
+}
+
 // Función para formatear fecha
 function formatDate(dateString) {
     if (!dateString) return '-';
-    const date = new Date(dateString);
+    const date = parseDateLocal(dateString);
+    if (isNaN(date)) return '-';
     return date.toLocaleDateString('es-CL');
 }
 
 // ===== FUNCIONES RESUMEN DE SALDOS =====
 
+// Variables para modal de resumen
+let currentDimensionId = null;
+let currentDimensionName = null;
+let currentDimensionType = null;
+let movimientosFiltrados = [];
+let movimientosDelMesActual = [];
+let movimientosMostrados = 15;
+
 // Abrir modal de resumen de saldos
 async function openResumenSaldos() {
     try {
         // Cargar datos de dimensiones si no están cargados
-        await loadDimensionData();
+        await preloadDimensions();
         
         // Mostrar modal
         elements.resumenSaldosModal.classList.remove('hidden');
@@ -1724,7 +1769,7 @@ function closeResumenSaldos() {
 }
 
 // Cargar datos de dimensiones
-async function loadDimensionData() {
+async function preloadDimensions() {
     const dimensiones = ['categorias', 'cuentas', 'contrapartes', 'instrumentos'];
     
     for (const dimension of dimensiones) {
@@ -1853,14 +1898,6 @@ function getDimensionNameField(dimension) {
 
 // ===== FUNCIONES DETALLE DE MOVIMIENTOS =====
 
-// Variables para modal de detalle
-let currentDimensionId = null;
-let currentDimensionName = null;
-let currentDimensionType = null;
-let movimientosFiltrados = [];
-let movimientosDelMesActual = [];
-let movimientosMostrados = 15;
-
 // Abrir modal de detalle de movimientos
 function openDetalleMovimientos(dimensionId, dimensionName, dimensionType) {
     currentDimensionId = dimensionId;
@@ -1905,7 +1942,7 @@ function loadMesesOptions() {
     const mesesSet = new Set();
     movimientosFiltrados.forEach(mov => {
         if (mov.fecha) {
-            const fecha = new Date(mov.fecha);
+            const fecha = parseDateLocal(mov.fecha);
             const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
             mesesSet.add(mesAnio);
         }
@@ -1921,6 +1958,7 @@ function loadMesesOptions() {
             year: 'numeric', 
             month: 'long' 
         });
+        
         return `<option value="${mesAnio}">${nombreMes}</option>`;
     }).join('');
     
@@ -1948,12 +1986,12 @@ function renderDetalleMovimientos() {
     const [anio, mes] = mesSeleccionado.split('-');
     movimientosDelMesActual = movimientosFiltrados.filter(mov => {
         if (!mov.fecha) return false;
-        const fechaMov = new Date(mov.fecha);
+        const fechaMov = parseDateLocal(mov.fecha);
         return fechaMov.getFullYear() == anio && (fechaMov.getMonth() + 1) == mes;
     });
     
     // Ordenar por fecha descendente
-    movimientosDelMesActual.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    movimientosDelMesActual.sort((a, b) => parseDateLocal(b.fecha) - parseDateLocal(a.fecha));
     
     // Resetear contador al cambiar mes
     movimientosMostrados = 15;
@@ -1966,15 +2004,17 @@ function renderDetalleMovimientos() {
     let totalGastos = 0;
     
     movimientosDelMesActual.forEach(mov => {
+        const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
         const monto = parseFloat(mov.monto) || 0;
-        if (monto > 0) {
-            totalIngresos += monto;
-        } else {
-            totalGastos += Math.abs(monto);
+        if (categoria && categoria.tipo_flujo === 'Ingreso') {
+            totalIngresos += Math.abs(monto);
+        } else if (categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera')) {
+            // Gastos negativos
+            totalGastos -= Math.abs(monto);
         }
     });
     
-    const saldoMes = totalIngresos - totalGastos;
+    const saldoMes = totalIngresos + totalGastos;
     
     // Actualizar estadísticas
     updateEstadisticasDetalle(totalIngresos, totalGastos, saldoMes);
