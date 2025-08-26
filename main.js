@@ -204,12 +204,31 @@ function setupEventListeners() {
         elements.closeSuccessModal.addEventListener('click', closeSuccessModal);
     }
 
+    // Cerrar modal de nueva transacción al hacer click fuera
+    if (elements.nuevaTransaccionModal) {
+        elements.nuevaTransaccionModal.addEventListener('click', (e) => {
+            if (e.target === elements.nuevaTransaccionModal) closeNuevaTransaccionModal();
+        });
+    }
+
     // Delete modal
     elements.cancelDelete.addEventListener('click', closeDeleteModal);
     elements.confirmDelete.addEventListener('click', confirmDelete);
     elements.deleteModal.addEventListener('click', (e) => {
         if (e.target === elements.deleteModal) closeDeleteModal();
     });
+    
+    // Cerrar modal principal al hacer click fuera
+    elements.modalOverlay.addEventListener('click', (e) => {
+        if (e.target === elements.modalOverlay) closeModal();
+    });
+
+    // Cerrar modal de éxito al hacer click fuera
+    if (elements.successModal) {
+        elements.successModal.addEventListener('click', (e) => {
+            if (e.target === elements.successModal) closeSuccessModal();
+        });
+    }
     
     // Selector de dimensiones
     elements.closeSelector.addEventListener('click', closeDimensionSelector);
