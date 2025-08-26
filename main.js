@@ -1,5 +1,8 @@
 // Configuración de datos
-const API_BASE_URL = 'http://localhost:5000/api';
+// URL de API dinámica: en dev usa localhost, en prod usa ruta relativa
+const API_BASE_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+  ? 'http://localhost:5000/api'
+  : '/api';
 
 const dataConfig = {
     movimientos: {
