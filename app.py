@@ -16,7 +16,8 @@ CSV_FILES = {
     'categorias': 'dim_categorias.csv',
     'contrapartes': 'dim_contrapartes.csv',
     'cuentas': 'dim_cuentas.csv',
-    'instrumentos': 'dim_instrumentos.csv'
+    'instrumentos': 'dim_instrumentos.csv',
+    'prestamos': 'dim_prestamos.csv'
 }
 
 def load_csv(filename):
@@ -302,6 +303,6 @@ if __name__ == '__main__':
     print("  POST   /api/<dimension>")
     print("  PUT    /api/<dimension>/<record_id>")
     print("  DELETE /api/<dimension>/<record_id>")
-    print("\nDimensiones disponibles: categorias, contrapartes, cuentas, instrumentos")
+    print("\nDimensiones disponibles: categorias, contrapartes, cuentas, instrumentos, prestamos")
     
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -34,6 +34,13 @@ const dataConfig = {
         endpoint: '/instrumentos',
         title: 'Instrumentos',
         description: 'Dimensión de instrumentos financieros'
+    },
+    prestamos: {
+        file: 'dim_prestamos.csv',
+        endpoint: '/prestamos',
+        title: 'Préstamos',
+        description: 'Dimensión de préstamos y créditos',
+        fields: ['prestamo_id', 'prestamo_nombre', 'tipo', 'monto', 'plazo', 'tasa_interes', 'fecha_inicio', 'fecha_termino', 'estado']
     }
 };
 
@@ -65,13 +72,16 @@ const requiredFields = {
     cuentas: ['cuenta_nombre', 'tipo_cuenta', 'banco', 'moneda_base', 'activa (si/no)'],
     categorias: ['tipo_flujo', 'categoria_nombre'],
     contrapartes: ['contraparte_nombre', 'tipo', 'subtipo', 'activa (si/no)'],
-    instrumentos: ['instrumento_nombre', 'tipo', 'emisor', 'moneda']
+    instrumentos: ['instrumento_nombre', 'tipo', 'emisor', 'moneda'],
+    prestamos: ['Prestamo_ID', 'Contraparte_ID', 'Descripcion', 'Fecha_Desembolso', 'Moneda', 'Monto_Desembolso', 'N_Cuotas', 'Tasa_Interes_Mensual', 'Valor_Cuota', 'Primer_Vencimiento', 'Dia_Vencimiento', 'Estado']
 };
 
 // Campos que deben ser listas desplegables
 const selectFields = {
     'activa (si/no)': ['SI', 'NO'],
-    'tipo_flujo': ['Ingreso', 'Gasto', 'Operación financiera', 'Mov. interno', 'Patrimonio', 'Ajuste']
+    'tipo_flujo': ['Ingreso', 'Gasto', 'Operación financiera', 'Mov. interno', 'Patrimonio', 'Ajuste'],
+    'Estado': ['Pendiente', 'Pagado', 'Vencido', 'En mora'],
+    'Moneda': ['CLP', 'USD', 'EUR', 'UF', 'UTM']
 };
 
 // Configuración de prefijos de ID para cada dimensión
@@ -80,6 +90,7 @@ const idPrefixes = {
     categorias: 'CAT_',
     contrapartes: 'CTR_',
     instrumentos: 'INS_',
+    prestamos: 'PRE_',
     movimientos: '' // Los movimientos usan formato YYYYMMDD-###
 };
 
@@ -590,6 +601,26 @@ function generateNextId() {
         const nextNumber = maxNum + 1;
         
         return dateStr + '-' + String(nextNumber).padStart(3, '0');
+    } else if (currentTable === 'prestamos') {
+        // Para préstamos, generar ID con formato PRE-YYYY-000
+        const today = new Date();
+        const year = today.getFullYear();
+        const prefix = 'PRE-' + year + '-';
+        
+        // Encontrar el último número del año actual
+        const existingIds = currentData
+            .map(row => row[idField])
+            .filter(id => id && id.startsWith(prefix))
+            .map(id => {
+                const numPart = id.replace(prefix, '');
+                return parseInt(numPart, 10);
+            })
+            .filter(num => !isNaN(num));
+        
+        const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+        const nextNumber = maxId + 1;
+        
+        return prefix + String(nextNumber).padStart(3, '0');
     } else {
         // Para dimensiones, usar el prefijo correspondiente
         const prefix = idPrefixes[currentTable];
@@ -613,36 +644,59 @@ function generateNextId() {
 
 // Generar formulario dinámico
 function generateForm(data = null) {
-    if (filteredData.length === 0) return;
+    if (filteredData.length === 0 && currentData.length === 0) {
+        elements.formFields.innerHTML = '<p class="text-gray-500">No hay datos para mostrar o agregar.</p>';
+        return;
+    }
     
-    const headers = Object.keys(filteredData[0]);
+    const headers = Object.keys(filteredData[0] || currentData[0] || {});
     const isEditing = data !== null;
     
     elements.formFields.innerHTML = headers.map((header, index) => {
-        const isIdField = index === 0; // Primer campo es siempre el ID
+        const isIdField = index === 0;
         let value = '';
         
         if (isEditing) {
             value = data[header] || '';
-        } else if (isIdField) {
+        } else if (isIdField && currentTable !== 'prestamos') {
+            // Para préstamos, el ID se genera dinámicamente
             value = generateNextId() || '';
         }
         
         const fieldId = `field-${header}`;
-        const isReadonly = isIdField && !isEditing;
+        const isReadonly = isIdField; // ID siempre es readonly
         
         // Determinar el tipo de input según el campo
         let inputType = 'text';
         let inputAttributes = '';
-        const isDimensionField = header.includes('_id') && !isIdField;
+        const isDimensionField = header.toLowerCase().endsWith('_id') && !isIdField;
         const isRequired = requiredFields[currentTable]?.includes(header);
         const isSelectField = selectFields[header];
         
         if (header.toLowerCase().includes('fecha')) {
             inputType = 'date';
-        } else if (header.toLowerCase().includes('monto') || header.toLowerCase().includes('tasa')) {
+        } else if (header.toLowerCase().includes('monto') || header.toLowerCase().includes('tasa') || header.toLowerCase().includes('valor')) {
             inputType = 'number';
             inputAttributes = 'step="0.01"';
+        }
+
+        // Lógica para el campo de ID de préstamos
+        if (isIdField && currentTable === 'prestamos' && !isEditing) {
+            return `
+                <div>
+                    <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-1">
+                        ${header} (generado automáticamente)
+                    </label>
+                    <input
+                        type="text"
+                        id="${fieldId}"
+                        name="${header}"
+                        readonly
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                        placeholder="Se generará con la fecha"
+                    >
+                </div>
+            `;
         }
         
         if (isDimensionField) {
@@ -696,6 +750,10 @@ function generateForm(data = null) {
             `;
         } else {
             // Campo normal
+            const onchangeHandler = (header === 'Fecha_Desembolso' && currentTable === 'prestamos' && !isEditing) 
+                ? 'onchange="updatePrestamoId()"' 
+                : '';
+
             return `
                 <div>
                     <label for="${fieldId}" class="block text-sm font-medium text-gray-700 mb-1">
@@ -708,7 +766,7 @@ function generateForm(data = null) {
                         value="${value}"
                         ${inputAttributes}
                         ${isReadonly ? 'readonly' : ''}
-                        ${header === 'fecha' ? 'onchange="updateMonthYear()"' : ''}
+                        ${onchangeHandler}
                         class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isReadonly ? 'bg-gray-100 cursor-not-allowed' : ''}"
                         placeholder="${isReadonly ? 'ID generado automáticamente' : `Ingresa ${header.toLowerCase()}`}"
                     >
@@ -716,6 +774,43 @@ function generateForm(data = null) {
             `;
         }
     }).join('');
+}
+
+// Actualizar ID de Préstamo basado en la fecha de desembolso
+function updatePrestamoId() {
+    const fechaInput = document.getElementById('field-Fecha_Desembolso');
+    const idInput = document.getElementById('field-Prestamo_ID');
+
+    if (!fechaInput || !idInput || !fechaInput.value) {
+        idInput.value = '';
+        return;
+    }
+
+    const fecha = new Date(fechaInput.value);
+    // Ajustar por la zona horaria para obtener el año correcto
+    const year = fecha.getUTCFullYear();
+
+    if (isNaN(year)) {
+        idInput.value = '';
+        return;
+    }
+
+    const prefix = `PRE-${year}-`;
+    const idField = 'Prestamo_ID';
+
+    const existingIds = currentData
+        .map(row => row[idField])
+        .filter(id => id && String(id).startsWith(prefix))
+        .map(id => {
+            const numPart = String(id).replace(prefix, '');
+            return parseInt(numPart, 10);
+        })
+        .filter(num => !isNaN(num));
+
+    const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+    const nextNumber = maxId + 1;
+
+    idInput.value = prefix + String(nextNumber).padStart(3, '0');
 }
 
 // Guardar registro
@@ -971,7 +1066,9 @@ const fieldToDimension = {
     'cuenta_id': 'cuentas',
     'contraparte_id': 'contrapartes', 
     'categoria_id': 'categorias',
-    'instrumento_id': 'instrumentos'
+    'instrumento_id': 'instrumentos',
+    'prestamo_id': 'prestamos',
+    'Contraparte_ID': 'contrapartes'  // Para la relación con contrapartes
 };
 
 // Abrir selector de dimensión
@@ -989,7 +1086,8 @@ async function openDimensionSelector(fieldName) {
         'cuentas': 'Cuenta',
         'contrapartes': 'Contraparte',
         'categorias': 'Categoría', 
-        'instrumentos': 'Instrumento'
+        'instrumentos': 'Instrumento',
+        'prestamos': 'Préstamo'
     };
     
     elements.selectorTitle.textContent = `Seleccionar ${dimensionNames[dimensionType]}`;
@@ -1051,7 +1149,7 @@ function renderSelectorTable() {
     if (filteredSelectorData.length === 0) {
         elements.selectorBody.innerHTML = `
             <tr>
-                <td colspan="100%" class="px-6 py-4 text-center text-gray-500">
+                <td colspan="100%" class="px-4 py-3 text-center text-gray-500">
                     No se encontraron datos
                 </td>
             </tr>
@@ -1407,7 +1505,7 @@ function renderTopCategorias(movimientosFiltrados) {
     movimientosFiltrados.forEach(mov => {
         if (mov.categoria_id) {
             const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-            const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id;
+            const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id || '-';
             
             if (!categoriasTotales[categoriaNombre]) {
                 categoriasTotales[categoriaNombre] = 0;
@@ -1468,7 +1566,7 @@ function renderMonthlyChart(movimientosFiltrados) {
     const labels = sortedMonths.map(month => {
         const [year, monthNum] = month.split('-');
         const date = new Date(year, monthNum - 1);
-        return date.toLocaleDateString('es-ES', { month: 'short' });
+        return date.toLocaleDateString('es-CL', { month: 'short' });
     });
     
     const ingresosData = sortedMonths.map(month => monthlyData[month].ingresos);
@@ -1777,7 +1875,7 @@ function renderRecentMovements() {
         .sort((a, b) => parseDateLocal(b.fecha) - parseDateLocal(a.fecha))
         .slice(0, 5);
     
-    recentMovementsBody.innerHTML = recentMovimientos.map(mov => {
+    recentMovimientosBody.innerHTML = recentMovimientos.map(mov => {
         const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
         const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id || '-';
         
@@ -1863,7 +1961,7 @@ function closeResumenSaldos() {
 
 // Cargar datos de dimensiones
 async function preloadDimensions() {
-    const dimensiones = ['categorias', 'cuentas', 'contrapartes', 'instrumentos'];
+    const dimensiones = ['categorias', 'cuentas', 'contrapartes', 'instrumentos', 'prestamos'];
     
     for (const dimension of dimensiones) {
         if (!dimensionCache[dimension]) {
@@ -1994,7 +2092,8 @@ function getDimensionIdField(dimension) {
         'categorias': 'categoria_id',
         'cuentas': 'cuenta_id',
         'contrapartes': 'contraparte_id',
-        'instrumentos': 'instrumento_id'
+        'instrumentos': 'instrumento_id',
+        'prestamos': 'prestamo_id'
     };
     return fieldMap[dimension];
 }
@@ -2005,7 +2104,8 @@ function getDimensionNameField(dimension) {
         'categorias': 'categoria_nombre',
         'cuentas': 'cuenta_nombre',
         'contrapartes': 'contraparte_nombre',
-        'instrumentos': 'instrumento_nombre'
+        'instrumentos': 'instrumento_nombre',
+        'prestamos': 'prestamo_nombre'
     };
     return fieldMap[dimension];
 }
@@ -2120,7 +2220,8 @@ function renderDetalleMovimientos() {
     
     movimientosDelMesActual.forEach(mov => {
         const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-        const monto = parseFloat(mov.monto) || 0;
+        const monto = parseFloat(mov.monto);
+        
         if (categoria && categoria.tipo_flujo === 'Ingreso') {
             totalIngresos += Math.abs(monto);
         } else if (categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera')) {
@@ -2147,7 +2248,7 @@ function renderMovimientosTabla() {
             <tr class="hover:bg-gray-50">
                 <td class="px-4 py-3 text-sm text-gray-900">${formatDate(mov.fecha)}</td>
                 <td class="px-4 py-3 text-sm text-gray-900">${mov.descripcion || '-'}</td>
-                <td class="px-4 py-3 text-sm font-medium text-right ${
+                <td class="px-4 py-3 text-sm font-medium ${
                     parseFloat(mov.monto) >= 0 ? 'text-green-600' : 'text-red-600'
                 }">${formatCurrency(mov.monto)}</td>
                 <td class="px-4 py-3 text-sm text-gray-500">${categoriaNombre}</td>

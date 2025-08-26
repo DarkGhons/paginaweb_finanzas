@@ -18,5 +18,5 @@ git push -u origin main
 
 # Subir cambios
 git add -A
-git commit -m "descripción commit"
+git commit -m ""
 git push 
