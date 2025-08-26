@@ -1190,8 +1190,7 @@ async function loadCSV(filename) {
     
     if (parsedData.errors.length > 0) {
         console.warn('Errores al parsear CSV:', parsedData.errors);
-    }
-    
+    }    
     return parsedData.data;
 }
 
