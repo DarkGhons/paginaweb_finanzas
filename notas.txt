@@ -1,0 +1,22 @@
+Crear rama y subirla al remoto
+git checkout -b nombre-rama
+git push -u origin nombre-rama
+
+Eliminar rama local y remota
+git branch -d nombre-rama
+git push origin --delete nombre-rama
+
+Crear commit y subirlo al remoto
+git add .
+git commit -m "mensaje"
+git push
+
+Fusionar rama con main
+git checkout main
+git merge nombre-rama
+git push -u origin main
+
+# Subir cambios
+git add -A
+git commit -m "descripción commit"
+git push 
