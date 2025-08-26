@@ -1221,8 +1221,33 @@ async function loadDashboard() {
             ]);
         }
         
-        movimientosData = movimientos;
-        categoriasData = categorias;
+        // Validar y limpiar datos de movimientos
+        movimientosData = movimientos.map(mov => ({
+            ...mov,
+            monto: parseFloat(mov.monto) || 0,
+            categoria_id: mov.categoria_id?.toString().trim()
+        }));
+        
+        // Validar y limpiar datos de categorías
+        categoriasData = categorias.map(cat => {
+            // Normalizar tipo_flujo
+            let tipoFlujo = String(cat.tipo_flujo || '').trim();
+            
+            // Mapear variantes a valores consistentes
+            if (tipoFlujo.match(/ingreso/i)) tipoFlujo = 'Ingreso';
+            else if (tipoFlujo.match(/gasto/i)) tipoFlujo = 'Gasto';
+            else if (tipoFlujo.match(/operación financiera|operacion financiera/i)) tipoFlujo = 'Operación financiera';
+            else if (tipoFlujo.match(/ajuste/i)) tipoFlujo = 'Ajuste';
+            
+            return {
+                ...cat,
+                tipo_flujo: tipoFlujo
+            };
+        });
+        
+        console.log('=== DATOS CARGADOS ===');
+        console.log('Total movimientos:', movimientosData.length);
+        console.log('Total categorías:', categoriasData.length);
         
         // Configurar filtro de año
         setupYearFilter();
@@ -1281,35 +1306,85 @@ function renderDashboard() {
     const ingresos = movimientosFiltrados
         .filter(mov => {
             const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-            return categoria && categoria.tipo_flujo === 'Ingreso';
+            const esIngreso = categoria && categoria.tipo_flujo === 'Ingreso';
+            if (esIngreso) {
+                console.log('Ingreso encontrado:', mov);
+            }
+            return esIngreso;
         })
-        .reduce((sum, mov) => sum + Math.abs(parseFloat(mov.monto)), 0);
+        .reduce((sum, mov) => {
+            const monto = Math.abs(parseFloat(mov.monto) || 0);
+            console.log('Sumando ingreso:', mov.descripcion, monto);
+            return sum + monto;
+        }, 0);
     
     // Representar GASTOS como valores negativos (incluye 'Operación financiera')
     const gastos = movimientosFiltrados
         .filter(mov => {
             const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-            return categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera');
+            const esGasto = categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera');
+            if (esGasto) {
+                console.log('Gasto encontrado:', mov);
+            }
+            return esGasto;
         })
-        .reduce((sum, mov) => sum - Math.abs(parseFloat(mov.monto)), 0);
+        .reduce((sum, mov) => {
+            const monto = Math.abs(parseFloat(mov.monto) || 0);
+            console.log('Restando gasto:', mov.descripcion, monto);
+            return sum - monto;
+        }, 0);
     
-    const patrimonio = movimientosFiltrados
-        .filter(mov => mov.categoria_id === 'CAT_033')
-        .reduce((sum, mov) => sum + Math.abs(parseFloat(mov.monto)), 0);
+    // Calcular el patrimonio total: -(suma de montos donde categoria_id no esté vacío)
+    const sumaTotal = movimientosData.reduce((sum, mov) => {
+        // Solo sumar si categoria_id existe y no está vacío
+        if (mov.categoria_id && mov.categoria_id.trim() !== '') {
+            const monto = parseFloat(mov.monto) || 0;
+            return sum + monto;
+        }
+        return sum;
+    }, 0);
     
-    // Saldo como ingresos + gastos (gastos ya negativos)
+    const patrimonioTotal = -sumaTotal;
+    
+    // Mostrar información de depuración
+    console.log('=== DEPURACIÓN DE CÁLCULOS ===');
+    console.log('Suma total de todos los montos:', sumaTotal);
+    console.log('Patrimonio Total (-(suma total)):', patrimonioTotal);
+    
+    // Mostrar algunas categorías para verificar
+    console.log('\n=== MUESTRA DE CATEGORÍAS ===');
+    categoriasData.slice(0, 5).forEach((cat, i) => {
+        console.log(`Categoría ${i+1}:`, cat.categoria_id, '-', cat.categoria_nombre, '- Tipo:', cat.tipo_flujo);
+    });
+    
+    // Mostrar algunos movimientos para verificar
+    console.log('\n=== MUESTRA DE MOVIMIENTOS ===');
+    movimientosData.slice(0, 5).forEach((mov, i) => {
+        const cat = categoriasData.find(c => c.categoria_id === mov.categoria_id);
+        console.log(`Movimiento ${i+1}:`, 
+                   'Monto:', mov.monto, 
+                   '- Categoría ID:', mov.categoria_id,
+                   '- Tipo Flujo:', cat?.tipo_flujo || 'Sin categoría');
+    });
+    
+    // Saldo como ingresos + gastos (gastos ya negativos) para el año seleccionado
     const saldo = ingresos + gastos;
     
     // Actualizar métricas en el DOM
     document.getElementById('saldo-total').textContent = formatCurrency(saldo);
     document.getElementById('total-ingresos').textContent = formatCurrency(ingresos);
     document.getElementById('total-gastos').textContent = formatCurrency(gastos);
-    document.getElementById('resultado-final').textContent = formatCurrency(saldo);
+    document.getElementById('patrimonio-total').textContent = formatCurrency(patrimonioTotal);
     
     // Actualizar detalles en saldo total
     if (elements.totalIngresosDetail) elements.totalIngresosDetail.textContent = formatCurrency(ingresos);
     if (elements.totalGastosDetail) elements.totalGastosDetail.textContent = formatCurrency(gastos);
-    if (elements.totalPatrimonioDetail) elements.totalPatrimonioDetail.textContent = formatCurrency(patrimonio);
+    
+    // Actualizar sección de patrimonio
+    const patrimonioElement = document.getElementById('patrimonio-total');
+    if (patrimonioElement) {
+        patrimonioElement.textContent = formatCurrency(patrimonioTotal);
+    }
     
     // Renderizar gráfico mensual
     renderMonthlyChart(movimientosFiltrados);
@@ -1378,13 +1453,13 @@ function renderMonthlyChart(movimientosFiltrados) {
         const fecha = parseDateLocal(mov.fecha);
         const monthKey = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
         const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-        const monto = Math.abs(parseFloat(mov.monto));
+        const monto = parseFloat(mov.monto);
         
         if (categoria && categoria.tipo_flujo === 'Ingreso') {
-            monthlyData[monthKey].ingresos += monto;
+            monthlyData[monthKey].ingresos += Math.abs(monto);
         } else if (categoria && (categoria.tipo_flujo === 'Gasto' || categoria.tipo_flujo === 'Operación financiera')) {
-            // Representar gastos como negativos
-            monthlyData[monthKey].gastos -= monto;
+            // Usar valor absoluto para los gastos en el gráfico
+            monthlyData[monthKey].gastos += Math.abs(monto);
         }
     });
     
@@ -1397,7 +1472,7 @@ function renderMonthlyChart(movimientosFiltrados) {
     });
     
     const ingresosData = sortedMonths.map(month => monthlyData[month].ingresos);
-    const gastosData = sortedMonths.map(month => monthlyData[month].gastos);
+    const gastosData = sortedMonths.map(month => monthlyData[month].gastos); // Ya están en valor absoluto
     
     // Destruir gráfico anterior si existe
     if (monthlyChart) {
@@ -1418,7 +1493,7 @@ function renderMonthlyChart(movimientosFiltrados) {
                 fill: false
             }, {
                 label: 'Gastos',
-                data: gastosData,
+                data: gastosData, // Mostrar en valor absoluto
                 borderColor: 'rgb(239, 68, 68)',
                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 tension: 0.1,
