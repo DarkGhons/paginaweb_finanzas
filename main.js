@@ -1826,26 +1826,47 @@ function renderResumenSaldos() {
     const dimensionIdField = getDimensionIdField(selectedDimension);
     const dimensionNameField = getDimensionNameField(selectedDimension);
     
-    // Calcular saldos por dimensión
+    // Normalizador de IDs para evitar problemas de espacios/caso
+    const norm = (v) => (v ?? '').toString().trim().toUpperCase();
+    
+    // Construir mapa de la dimensión por ID normalizado
+    const dimMap = new Map(
+        dimensionData.map(item => [norm(item[dimensionIdField]), item])
+    );
+    
+    // Calcular saldos por dimensión (usando ID normalizado)
     const saldosPorDimension = {};
     let totalGeneral = 0;
+    let movimientosConId = 0;
+    let movimientosUnidos = 0;
     
     movimientosData.forEach(mov => {
-        const dimensionId = mov[dimensionIdField];
-        if (dimensionId) {
-            // Verificar que la dimensión existe en los datos
-            const dimensionExists = dimensionData.find(item => item[dimensionIdField] === dimensionId);
-            if (dimensionExists) {
-                const monto = parseFloat(mov.monto) || 0;
-                saldosPorDimension[dimensionId] = (saldosPorDimension[dimensionId] || 0) + monto;
-                totalGeneral += monto;
-            }
+        const rawId = mov[dimensionIdField];
+        if (!rawId) return;
+        movimientosConId += 1;
+        const id = norm(rawId);
+        const dimItem = dimMap.get(id);
+        if (dimItem) {
+            const monto = parseFloat(mov.monto) || 0;
+            saldosPorDimension[id] = (saldosPorDimension[id] || 0) + monto;
+            totalGeneral += monto;
+            movimientosUnidos += 1;
         }
     });
     
+    // Logs de depuración para diagnosticar problemas de carga/union
+    try {
+        console.debug('[ResumenSaldos] Dimensión:', selectedDimension,
+            '| Dim registros:', dimensionData.length,
+            '| Mov totales:', movimientosData.length,
+            '| Mov con ID:', movimientosConId,
+            '| Mov unidos:', movimientosUnidos,
+            '| Distintos IDs agregados:', Object.keys(saldosPorDimension).length);
+    } catch (_) {}
+    
     // Crear array de resultados con nombres de dimensión
     const resultados = Object.entries(saldosPorDimension).map(([dimensionId, saldo]) => {
-        const dimensionItem = dimensionData.find(item => item[dimensionIdField] === dimensionId);
+        const dimensionItem = dimMap.get(dimensionId);
         let nombre;
         
         if (dimensionItem) {
@@ -1929,7 +1950,8 @@ function openDetalleMovimientos(dimensionId, dimensionName, dimensionType) {
     
     // Filtrar movimientos por dimensión
     const dimensionIdField = getDimensionIdField(dimensionType);
-    movimientosFiltrados = movimientosData.filter(mov => mov[dimensionIdField] === dimensionId);
+    const norm = (v) => (v ?? '').toString().trim().toUpperCase();
+    movimientosFiltrados = movimientosData.filter(mov => norm(mov[dimensionIdField]) === norm(dimensionId));
     
     // Cargar opciones de meses
     loadMesesOptions();
