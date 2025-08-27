@@ -24,12 +24,23 @@ def load_csv(filename):
     """Cargar archivo CSV y manejar errores"""
     try:
         if os.path.exists(filename):
-            return pd.read_csv(filename)
+            # Cargar el CSV y reemplazar NaN con None para JSON
+            df = pd.read_csv(filename)
+            return df.where(pd.notnull(df), None)
         else:
             return pd.DataFrame()
-    except Exception as e:
-        print(f"Error cargando {filename}: {e}")
-        return pd.DataFrame()
+    except Exception as pd_err:
+        print(f"Error cargando {filename}: {pd_err}")
+        # Intentar cargar manualmente si hay un error con pandas
+        try:
+            import csv
+            with open(filename, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                data = [row for row in reader]
+            return pd.DataFrame(data).replace('', None)
+        except Exception as csv_err:
+            print(f"Error cargando {filename} manualmente: {csv_err}")
+            return pd.DataFrame()
 
 def save_csv(df, filename):
     """Guardar DataFrame a CSV"""
@@ -72,8 +83,20 @@ def static_files(filename):
 @app.route('/api/movimientos', methods=['GET'])
 def get_movimientos():
     """Obtener todos los movimientos"""
-    df = load_csv(CSV_FILES['movimientos'])
-    return jsonify(df.to_dict('records'))
+    try:
+        df = load_csv(CSV_FILES['movimientos'])
+        # Convertir NaN a None para cada registro
+        records = []
+        for _, row in df.iterrows():
+            record = {}
+            for col in df.columns:
+                value = row[col]
+                record[col] = None if pd.isna(value) else value
+            records.append(record)
+        return jsonify(records)
+    except Exception as e:
+        print(f"Error en get_movimientos: {str(e)}")
+        return jsonify({'error': 'Error al cargar los movimientos'}), 500
 
 @app.route('/api/movimientos', methods=['POST'])
 def create_movimiento():
@@ -187,11 +210,23 @@ def delete_movimiento(mov_id):
 @app.route('/api/<dimension>', methods=['GET'])
 def get_dimension(dimension):
     """Obtener datos de dimensión"""
-    if dimension not in CSV_FILES:
-        return jsonify({'error': 'Dimensión no válida'}), 400
-    
-    df = load_csv(CSV_FILES[dimension])
-    return jsonify(df.to_dict('records'))
+    try:
+        if dimension not in CSV_FILES:
+            return jsonify({'error': 'Dimensión no válida'}), 400
+        
+        df = load_csv(CSV_FILES[dimension])
+        # Convertir NaN a None para cada registro
+        records = []
+        for _, row in df.iterrows():
+            record = {}
+            for col in df.columns:
+                value = row[col]
+                record[col] = None if pd.isna(value) else value
+            records.append(record)
+        return jsonify(records)
+    except Exception as e:
+        print(f"Error en get_dimension({dimension}): {str(e)}")
+        return jsonify({'error': f'Error al cargar la dimensión {dimension}'}), 500
 
 @app.route('/api/<dimension>', methods=['POST'])
 def create_dimension_record(dimension):

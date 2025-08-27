@@ -1491,7 +1491,9 @@ function renderDashboard() {
     renderTopCategorias(movimientosFiltrados);
     
     // Renderizar movimientos recientes
-    renderRecentMovements();
+    if (document.getElementById('recent-movements-body')) {
+        renderRecentMovements();
+    }
 }
 
 // Función para renderizar top categorías
@@ -1868,28 +1870,38 @@ function showTable() {
 // Función para renderizar movimientos recientes
 function renderRecentMovements() {
     const recentMovementsBody = document.getElementById('recent-movements-body');
-    if (!recentMovementsBody || !movimientosData.length) return;
+    if (!recentMovementsBody || !movimientosData || !movimientosData.length) {
+        console.log('No se puede renderizar movimientos recientes:', { 
+            hasElement: !!recentMovementsBody, 
+            hasData: !!(movimientosData && movimientosData.length) 
+        });
+        return;
+    }
     
-    // Tomar los 5 movimientos más recientes
-    const recentMovimientos = movimientosData
-        .sort((a, b) => parseDateLocal(b.fecha) - parseDateLocal(a.fecha))
-        .slice(0, 5);
-    
-    recentMovimientosBody.innerHTML = recentMovimientos.map(mov => {
-        const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
-        const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id || '-';
+    try {
+        // Tomar los 5 movimientos más recientes
+        const recentMovimientos = [...movimientosData]
+            .sort((a, b) => parseDateLocal(b.fecha) - parseDateLocal(a.fecha))
+            .slice(0, 5);
         
-        return `
-            <tr class="hover:bg-gray-50">
-                <td class="px-4 py-2 text-sm text-gray-900">${formatDate(mov.fecha)}</td>
-                <td class="px-4 py-2 text-sm text-gray-900">${mov.descripcion || '-'}</td>
-                <td class="px-4 py-2 text-sm font-medium ${
-                    parseFloat(mov.monto) >= 0 ? 'text-green-600' : 'text-red-600'
-                }">${formatCurrency(mov.monto)}</td>
-                <td class="px-4 py-2 text-sm text-gray-500">${categoriaNombre}</td>
-            </tr>
-        `;
-    }).join('');
+        recentMovementsBody.innerHTML = recentMovimientos.map(mov => {
+            const categoria = categoriasData.find(cat => cat.categoria_id === mov.categoria_id);
+            const categoriaNombre = categoria ? categoria.categoria_nombre : mov.categoria_id || '-';
+            
+            return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm text-gray-900">${formatDate(mov.fecha)}</td>
+                    <td class="px-4 py-2 text-sm text-gray-900">${mov.descripcion || '-'}</td>
+                    <td class="px-4 py-2 text-sm font-medium ${
+                        parseFloat(mov.monto) >= 0 ? 'text-green-600' : 'text-red-600'
+                    }">${formatCurrency(mov.monto)}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">${categoriaNombre}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error al renderizar movimientos recientes:', error);
+    }
 }
 
 // Función para formatear moneda
